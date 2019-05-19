@@ -1,46 +1,48 @@
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 using namespace Rcpp;
 
+// [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::export]]
-NumericMatrix rPoissonProcess(int nsim, double muE, Function lambda) {
+arma::mat rPoissonProcess(double muE, Function lambda) {
   
   //Simulate the number of points on space
-  NumericVector N = Rcpp::rpois(1, muE);
+  int N = Rcpp::rpois(1, muE)[0];
+  arma::mat SimMatrix;
+  arma::mat pprocess;
+  arma::vec pcriteria;
+  arma::vec lambdavec;
+  arma::uvec ids;
   
   //Verify that there are points here:
-  if (N[0] > 0){
+  if (N > 0){
     
     //Distribute the number of points uniformly in space
-    NumericMatrix SimMatrix( N[0], 2 );
+    SimMatrix = arma::mat(N, 2, arma::fill::none);
     
     //Simulate a homogeneous poisson process
-    SimMatrix(_, 0) = Rcpp::runif(N[0], 0, 1);
-    SimMatrix(_, 1) = Rcpp::runif(N[0], 0, 1);
+    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(N, 0, 1));
+    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(N, 0, 1));
     
-    //Acceptance and rejection
-    NumericVector pcriteria = Rcpp::runif(N[0],0,1);
-    NumericMatrix pprocess (N[0] , 2);
-    NumericVector lambdavec = lambda(SimMatrix(_, 0), SimMatrix(_, 1));
-    int counter = 0;
-    for (int i = 0; i < N[0]; i++){
-      if (pcriteria[i] < lambdavec(i)/muE){
-        pprocess(counter,_) = SimMatrix(i, _);
-        counter += 1;
-      }
-    }
-    if (counter > 0){
-      return pprocess(Range(0,counter-1),_);  
-    } else {
-      NumericMatrix pprocess (0 , 2);
-      return pprocess;
-    }
-  } else {
-    NumericMatrix pprocess (0 , 2);
-    return pprocess;
+    //Acceptance and rejection criteria
+    pcriteria = as<arma::vec>(Rcpp::runif(N,0,1));
+    
+    //Create normalized lambda vector
+    lambdavec = as<arma::vec>(lambda(SimMatrix.col(0), SimMatrix.col(1)))/muE;
+    
+    //Check 
+    ids = arma::find(lambdavec <= pcriteria); // Find indices
+    pprocess = SimMatrix.rows(ids);
+    
   }
+  return pprocess;
 }
 
 
 /*** R
-rPoissonProcess(100, 600, function(x,y){300*(x^2 + y^2)})
+plot(rPoissonProcess(10, function(x,y){rep(1 , length(x))})) #Aproximadamente 10 pts
+plot(pp, xlim = c(0,1), ylim = c(0,1))
+
+plot(rPoissonProcess(10, function(x,y){x^2 + y^2})) #Aproximadamente 10 pts
+plot(pp, xlim = c(0,1), ylim = c(0,1))
+
 */

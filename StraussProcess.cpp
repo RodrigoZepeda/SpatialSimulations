@@ -2,10 +2,11 @@
 using namespace Rcpp;
 
 // [[Rcpp::export]]
-NumericMatrix rStraussProcess(int nsim, double muE, Function lambda) {
+arma::mat rStraussProcess(int nsim, double muE, Function lambda) {
   
   //Simulate the number of points on space
   NumericVector N = Rcpp::rpois(1, muE);
+  arma::mat SimMatrix;
   
   //Verify that there are points here:
   if (N[0] > 0){
