@@ -1,47 +1,104 @@
-#include <Rcpp.h>
+#include <RcppArmadillo.h>
 using namespace Rcpp;
 
-// [[Rcpp::export]]
-arma::mat rStraussProcess(int nsim, double muE, Function lambda) {
+// [[Rcpp::depends(RcppArmadillo)]]
+int sfun (arma::mat v, double r){
   
-  //Simulate the number of points on space
-  NumericVector N = Rcpp::rpois(1, muE);
-  arma::mat SimMatrix;
+  //Get number of elements
+  int n = v.n_rows;
   
-  //Verify that there are points here:
-  if (N[0] > 0){
-    
-    //Distribute the number of points uniformly in space
-    NumericMatrix SimMatrix( N[0], 2 );
-    
-    //Simulate a homogeneous poisson process
-    SimMatrix(_, 0) = Rcpp::runif(N[0], 0, 1);
-    SimMatrix(_, 1) = Rcpp::runif(N[0], 0, 1);
-    
-    //Acceptance and rejection
-    NumericVector pcriteria = Rcpp::runif(N[0],0,1);
-    NumericMatrix pprocess (N[0] , 2);
-    NumericVector lambdavec = lambda(SimMatrix(_, 0), SimMatrix(_, 1));
-    int counter = 0;
-    for (int i = 0; i < N[0]; i++){
-      if (pcriteria[i] < lambdavec(i)/muE){
-        pprocess(counter,_) = SimMatrix(i, _);
-        counter += 1;
+  //NUmber of elements at distance < r
+  int count = 0;
+  
+  //Loop through all elements
+  for (int k = 0; k < n; k++){
+    for (int j = (k + 1); j < n; j++){
+      if ( arma::norm(v.row(k) - v.row(j)) < r ){
+        count = count + 1;
       }
     }
-    if (counter > 0){
-      return pprocess(Range(0,counter-1),_);  
-    } else {
-      NumericMatrix pprocess (0 , 2);
-      return pprocess;
-    }
-  } else {
-    NumericMatrix pprocess (0 , 2);
-    return pprocess;
   }
+  
+  return count;
 }
 
+// [[Rcpp::export]]
+arma::mat rStraussProcess(double gamma, double r, double beta, int n, int niter, arma::vec xlim, arma::vec ylim) {
+  
+  //Simulate the number of points on space
+  int deleterow;
+  bool bflag;
+  int spairsSimMatrix;
+  int spairsSimAux;
+  int pairdif;
+  double alpha;
+  arma::mat SimMatrix;
+  arma::mat SimAux;
+  arma::vec aux;
+  
+  //Verify that there are points here:
+  if (n > 0){
+    
+    //Distribute the number of points uniformly in space
+    SimMatrix = arma::mat(n, 2, arma::fill::none);
+    
+    //Simulate a homogeneous poisson process
+    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(n, xlim(0), xlim(1)));
+    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(n, ylim(0), ylim(1)));
+    
+    //Loop through all
+    for (int i = 0; i < niter; i++){
+      
+      n = SimMatrix.n_rows;
+      
+      //Birth process
+      bflag = (Rcpp::runif(1,0,1)[0] < 0.5);
+      if (bflag){
+        
+        //Create new point
+        aux = arma::vec(2);
+        aux(0) = Rcpp::runif(1, xlim(0), xlim(1))[0];
+        aux(1) = Rcpp::runif(1, ylim(0), ylim(1))[0];
+        
+        //Add new point
+        SimAux = arma::join_cols(SimMatrix, aux.t());
+        
+      //Death process  
+      } else {
+        
+        //Cannot kill if none alive
+        SimAux = SimMatrix;
+        
+        //Get row to delete
+        if (n > 0){
+          deleterow = floor(n*Rcpp::runif(1,0,1)[0]);
+          SimAux.shed_row(deleterow);
+        }
+        
+      }
+      
+      //Get number of pairs of points at distance < r
+      spairsSimMatrix = sfun(SimMatrix, r);
+      spairsSimAux = sfun(SimAux, r);
 
-/*** R
-rStraussProcess(100, 600, function(x,y){300*(x^2 + y^2)})
-*/
+      //Check number of points at distance 
+      pairdif = spairsSimAux - spairsSimMatrix;
+      
+      //Check pair difference
+      if (pairdif < 0){
+        alpha = 1;
+      //Birth
+      } else if (bflag) {
+        alpha = beta*pow(gamma, pairdif)/ ( (double) SimAux.n_rows );
+      //Death  
+      } else {
+        alpha = ( (double) SimMatrix.n_rows)*pow(gamma, pairdif)/beta;
+      }
+      if (Rcpp::runif(1,0,1)[0] < alpha){
+        SimMatrix = SimAux;
+      }
+    }
+    
+  }
+  return SimMatrix;
+}

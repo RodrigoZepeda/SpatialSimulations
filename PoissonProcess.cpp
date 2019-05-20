@@ -3,7 +3,7 @@ using namespace Rcpp;
 
 // [[Rcpp::depends(RcppArmadillo)]]
 // [[Rcpp::export]]
-arma::mat rPoissonProcess(double muE, Function lambda) {
+arma::mat rPoissonProcess(double muE, Function lambda, arma::vec xlim, arma::vec ylim) {
   
   //Simulate the number of points on space
   int N = Rcpp::rpois(1, muE)[0];
@@ -20,8 +20,8 @@ arma::mat rPoissonProcess(double muE, Function lambda) {
     SimMatrix = arma::mat(N, 2, arma::fill::none);
     
     //Simulate a homogeneous poisson process
-    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(N, 0, 1));
-    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(N, 0, 1));
+    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(N, xlim(0), xlim(1)));
+    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(N, ylim(0), ylim(1)));
     
     //Acceptance and rejection criteria
     pcriteria = as<arma::vec>(Rcpp::runif(N,0,1));
@@ -36,13 +36,3 @@ arma::mat rPoissonProcess(double muE, Function lambda) {
   }
   return pprocess;
 }
-
-
-/*** R
-plot(rPoissonProcess(10, function(x,y){rep(1 , length(x))})) #Aproximadamente 10 pts
-plot(pp, xlim = c(0,1), ylim = c(0,1))
-
-plot(rPoissonProcess(10, function(x,y){x^2 + y^2})) #Aproximadamente 10 pts
-plot(pp, xlim = c(0,1), ylim = c(0,1))
-
-*/

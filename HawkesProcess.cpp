@@ -5,7 +5,7 @@ using namespace Rcpp;
 // [[Rcpp::depends(RcppArmadillo)]]
 
 // [[Rcpp::export]]
-arma::mat rHawkesProcess(double lambda, double rho) {
+List rHawkesProcess(double lambda, double rho, double alpha, arma::vec xlim, arma::vec ylim) {
   
   //Initialize the variables
   arma::mat Aux;
@@ -23,8 +23,8 @@ arma::mat rHawkesProcess(double lambda, double rho) {
     SimMatrix = arma::mat(N, 2, arma::fill::none);
 
     //Simulate a homogeneous poisson process of centers
-    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(N, 0, 1));
-    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(N, 0, 1));
+    SimMatrix.col(0) = as<arma::vec>(Rcpp::runif(N, xlim(0), xlim(1)));
+    SimMatrix.col(1) = as<arma::vec>(Rcpp::runif(N, ylim(0), ylim(1)));
 
     //Generate the points procedurally generation by generation
     int tpoints = N;   //Total number of points
@@ -46,8 +46,8 @@ arma::mat rHawkesProcess(double lambda, double rho) {
         
         //Get coordinates (need to change this)
         clusterC = arma::mat(Nchild, 2, arma::fill::none);
-        clusterC.col(0) = 0.02*as<arma::vec>(Rcpp::rnorm(Nchild));
-        clusterC.col(1) = 0.02*as<arma::vec>(Rcpp::rnorm(Nchild));
+        clusterC.col(0) = alpha*as<arma::vec>(Rcpp::rnorm(Nchild));
+        clusterC.col(1) = alpha*as<arma::vec>(Rcpp::rnorm(Nchild));
         
         //Add to aux new cluster
         Aux = Aux + clusterC;
@@ -63,11 +63,8 @@ arma::mat rHawkesProcess(double lambda, double rho) {
       gen = gen + 1;
     }
   }
-    return SimMatrix;
+  
+  return Rcpp::List::create(Rcpp::Named("Simulations") = SimMatrix,
+                            Rcpp::Named("N") = N);
     
 }
-
-
-/*** R
-plot(rHawkesProcess(100, 30, 0.9))
-*/
